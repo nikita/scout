@@ -32,9 +32,11 @@ Even if you don't yet have the hardware necessary to start running inference wit
 
 NOTE: Replace all CHANGEME areas in code
 
-If you'd like to restart the poll script automatically if it crashes (internet outage or similar), uncomment lines 3 and 4 of `setup.sh`, and comment line 5.
+1. Run `cd ./scripts/TeslaJS`.
+2. Run `npm install`.
+3. Run `npm start`.
 
-Finally, run `./scripts/TeslaJS/setup.sh`.
+If you'd like to restart the poll script automatically if it crashes (internet outage or similar), run `npm run forever` instead.
 
 # Xavier Setup
 
