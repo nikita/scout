@@ -19,21 +19,30 @@ mongoose.connect(process.env.MONGODB_URI, {
   useUnifiedTopology: true
 });
 
-var lastState = "";
-var lastDrive = "";
-var lastGeocodeID = null;
-var lastGeoTS = null;
-var lastGeoStreet = null;
-var lastGeoCity = null;
-var lastGeoObject = new Geocode({});
-
 function sampleMain(tjs, options) {
-  async function getFirstGeoCode(lat, lon, geoTS) {
-    console.log("Running getFirstGeoCode");
+  let firstGeoCode = true;
+  let lastState = "";
+  let lastDrive = "";
+  let lastGeocodeID = null;
+  let lastGeoTS = null;
+  let lastGeoStreet = null;
+  let lastGeoCity = null;
+  let lastGeoObject = new Geocode({});
+
+  async function getGeoCode({
+    latitude,
+    longitude,
+    gps_as_of,
+    heading,
+    native_location_supported,
+    native_type,
+    power
+  }) {
+    console.log("Running getGeoCode");
 
     try {
       const response = await rp.get({
-        uri: `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
+        uri: `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude.toString()}&lon=${longitude.toString()}&zoom=18&addressdetails=1`,
         headers: {
           "User-Agent": "SDScout/0.0.1"
         },
@@ -62,17 +71,51 @@ function sampleMain(tjs, options) {
         boundingbox: response.boundingbox
       });
 
-      newGeocode.save().then(() => {
-        lastGeoObject = newGeocode;
-        lastGeoTS = geoTS;
-        lastGeocodeID = newGeocode._id;
-        lastGeoStreet = response.address.road;
-        lastGeoCity = response.address.city;
+      // Save the document
+      await newGeocode.save();
 
-        console.log(`Saved First Geocode:\n${newGeocode._id}`);
-      });
+      console.log(
+        `Saved ${firstGeoCode ? "First Geocode" : "Geocode"}:\n${
+          newGeocode._id
+        }`
+      );
 
-      return;
+      // Set the last state
+      lastGeoObject = newGeocode;
+      lastGeoTS = parseInt(gps_as_of.toString());
+      lastGeocodeID = newGeocode._id;
+      lastGeoStreet = response.address.road;
+      lastGeoCity = response.address.city;
+
+      // If not our first GeoCode we save the poll too
+      if (!firstGeoCode) {
+        const newPoll = new Poll({
+          ts: new Date(parseInt(gps_as_of.toString())),
+          unixTS:
+            new Date(new Date(parseInt(gps_as_of.toString())) * 1000) / 1000,
+          heading: heading.toString(),
+          location: {
+            type: "Point",
+            coordinates: [longitude.toString(), latitude.toString()]
+          },
+          street: response.address.road,
+          city: response.address.city,
+          locAvail: native_location_supported.toString(),
+          nativeType: native_type.toString(),
+          power: power.toString(),
+          status: state,
+          speed: speed,
+          driveID: lastDrive,
+          geocodeID: newGeocode._id
+        });
+
+        // Save the document
+        await newPoll.save();
+
+        console.log(`Saved Poll:\n${newPoll}`);
+      } else {
+        firstGeoCode = false;
+      }
     } catch (err) {
       console.log(err);
     }
@@ -80,12 +123,8 @@ function sampleMain(tjs, options) {
 
   tjs.driveState(options, async function(err, drive_state) {
     if (drive_state) {
-      if (!lastGeocodeID)
-        getFirstGeoCode(
-          drive_state.latitude.toString(),
-          drive_state.longitude.toString(),
-          parseInt(drive_state.gps_as_of.toString())
-        );
+      // Save our first Geocode
+      if (!lastGeocodeID) getGeoCode(drive_state);
 
       console.log(drive_state);
 
@@ -197,86 +236,13 @@ function sampleMain(tjs, options) {
       } else {
         lastState = state;
 
+        // Driving/in a drive
         if (state != "Parked") {
-          //driving, in a drive
-
           // Check if we need to get geocode (has it been more than 3 seconds)
           if (parseInt(drive_state.gps_as_of.toString()) - lastGeoTS > 3) {
-            try {
-              const response = await rp.get({
-                uri: `https://nominatim.openstreetmap.org/reverse?format=json&lat=${drive_state.latitude.toString()}&lon=${drive_state.longitude.toString()}&zoom=18&addressdetails=1`,
-                headers: {
-                  "User-Agent": "SDScout/0.0.1"
-                },
-                json: true
-              });
-
-              const newGeocode = new Geocode({
-                place_id: response.place_id,
-                license: response.license,
-                osm_type: response.osm_type,
-                osm_id: response.osm_id,
-                location: {
-                  type: "Point",
-                  coordinates: [response.lon, response.lat]
-                },
-                display_name: response.display_name,
-                house_number: response.address.house_number,
-                road: response.address.road,
-                suburb: response.address.suburb,
-                city: response.address.city,
-                county: response.address.county,
-                state: response.address.state,
-                postcode: response.address.postcode,
-                country: response.address.country,
-                country_code: response.address.country_code,
-                boundingbox: response.boundingbox
-              });
-
-              newGeocode.save().then(() => {
-                lastGeoObject = newGeocode;
-                lastGeoTS = parseInt(drive_state.gps_as_of.toString());
-                lastGeocodeID = newGeocode._id;
-                lastGeoStreet = response.address.road;
-                lastGeoCity = response.address.city;
-
-                console.log(`Saved:\n${newGeocode._id}`);
-
-                const newPoll = new Poll({
-                  ts: new Date(parseInt(drive_state.gps_as_of.toString())),
-                  unixTS:
-                    new Date(
-                      new Date(parseInt(drive_state.gps_as_of.toString())) *
-                        1000
-                    ) / 1000,
-                  heading: drive_state.heading.toString(),
-                  location: {
-                    type: "Point",
-                    coordinates: [
-                      drive_state.longitude.toString(),
-                      drive_state.latitude.toString()
-                    ]
-                  },
-                  street: response.address.road,
-                  city: response.address.city,
-                  locAvail: drive_state.native_location_supported.toString(),
-                  nativeType: drive_state.native_type.toString(),
-                  power: drive_state.power.toString(),
-                  status: state,
-                  speed: speed,
-                  driveID: lastDrive,
-                  geocodeID: newGeocode._id
-                });
-
-                newPoll.save().then(() => {
-                  console.log(`Saved:\n${newPoll}`);
-                });
-              });
-            } catch (err) {
-              console.log(err);
-            }
+            getGeoCode(drive_state);
           } else {
-            //use lastGeo data, within 3 seconds.
+            // Use lastGeo data, within 3 seconds.
 
             const newPoll = new Poll({
               ts: new Date(parseInt(drive_state.gps_as_of.toString())),
