@@ -1,0 +1,20 @@
+{
+  "name": "scout",
+  "version": "1.0.0",
+  "description": "",
+  "main": "poll.js",
+  "scripts": {
+    "start": "node ./poll",
+    "forever": "forever start ./poll.js"
+  },
+  "keywords": [],
+  "author": "никита",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^4.0.1",
+    "forever": "^1.0.0",
+    "mongoose": "^5.7.12",
+    "node-cron": "^2.0.3",
+    "teslajs": "^4.7.3"
+  }
+}

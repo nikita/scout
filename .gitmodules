@@ -4,6 +4,3 @@
 [submodule "alpr-unconstrained"]
 	path = alpr-unconstrained
 	url = https://github.com/sergiomsilva/alpr-unconstrained.git
-[submodule "TeslaJS"]
-	path = TeslaJS
-	url = https://github.com/mseminatore/TeslaJS.git
