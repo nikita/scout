@@ -33,8 +33,10 @@ Even if you don't yet have the hardware necessary to start running inference wit
 NOTE: Replace all CHANGEME areas in code
 
 1. Run `cd ./scripts/TeslaJS`.
-2. Run `npm install`.
-3. Run `npm start`.
+2. Rename `.env.example` → `.env`.
+3. Open .env & change CHANGEME values to your own.
+4. Run `npm install`.
+5. Run `npm start`.
 
 If you'd like to restart the poll script automatically if it crashes (internet outage or similar), run `npm run forever` instead.
 
