@@ -3,6 +3,7 @@ const Schema = mongoose.Schema;
 
 const PollSchema = new Schema({
   ts: Date,
+  unixTS: Number,
   heading: Number,
   location: {
     type: {
@@ -18,7 +19,6 @@ const PollSchema = new Schema({
   street: String,
   city: String,
   locAvail: Boolean,
-  unixTS: Number,
   nativeType: String,
   power: Number,
   status: String,

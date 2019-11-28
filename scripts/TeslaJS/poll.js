@@ -27,17 +27,78 @@ function sampleMain(tjs, options) {
   let lastGeoTS = null;
   let lastGeoStreet = null;
   let lastGeoCity = null;
-  let lastGeoObject = new Geocode({});
+  let lastGeoObject = null;
 
-  async function getGeoCode({
-    latitude,
-    longitude,
-    gps_as_of,
-    heading,
-    native_location_supported,
-    native_type,
-    power
-  }) {
+  async function createDrive({ latitude, longitude, gps_as_of, heading }) {
+    try {
+      // Create the new Drive document
+      const newDrive = new Drive({
+        startTime: new Date(parseInt(gps_as_of.toString())),
+        startHeading: heading.toString(),
+        startLocation: {
+          type: "Point",
+          coordinates: [longitude.toString(), latitude.toString()]
+        }
+      });
+
+      // Save the document
+      await newDrive.save();
+
+      console.log(`Saved Drive: ${newDrive._id}`);
+
+      return newDrive;
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
+  async function createPoll(
+    {
+      latitude,
+      longitude,
+      gps_as_of,
+      heading,
+      native_location_supported,
+      native_type,
+      power
+    },
+    extraFields = {}
+  ) {
+    try {
+      // By default we assume we are parked, after or before a drive
+      let pollData = {
+        ts: new Date(parseInt(gps_as_of.toString())),
+        unixTS:
+          new Date(new Date(parseInt(gps_as_of.toString())) * 1000) / 1000,
+        heading: heading.toString(),
+        location: {
+          type: "Point",
+          coordinates: [longitude.toString(), latitude.toString()]
+        },
+        street: lastGeoStreet,
+        city: lastGeoCity,
+        locAvail: native_location_supported.toString(),
+        nativeType: native_type.toString(),
+        power: power.toString(),
+        geocodeID: lastGeocodeID,
+        ...extraFields
+      };
+
+      // Create the new Poll document
+      const newPoll = new Poll(pollData);
+
+      // Save the document
+      await newPoll.save();
+
+      console.log(`Saved Poll: ${newPoll}`);
+
+      return newPoll;
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
+  async function getGeoCode({ latitude, longitude, gps_as_of }) {
     console.log("Running getGeoCode");
 
     try {
@@ -49,6 +110,7 @@ function sampleMain(tjs, options) {
         json: true
       });
 
+      // Create the new Geocode document
       const newGeocode = new Geocode({
         place_id: response.place_id,
         license: response.license,
@@ -87,33 +149,17 @@ function sampleMain(tjs, options) {
       lastGeoStreet = response.address.road;
       lastGeoCity = response.address.city;
 
-      // If not our first GeoCode we save the poll too
+      // If not our first Geocode we save the poll too
       if (!firstGeoCode) {
-        const newPoll = new Poll({
-          ts: new Date(parseInt(gps_as_of.toString())),
-          unixTS:
-            new Date(new Date(parseInt(gps_as_of.toString())) * 1000) / 1000,
-          heading: heading.toString(),
-          location: {
-            type: "Point",
-            coordinates: [longitude.toString(), latitude.toString()]
-          },
-          street: response.address.road,
-          city: response.address.city,
-          locAvail: native_location_supported.toString(),
-          nativeType: native_type.toString(),
-          power: power.toString(),
+        // Create the new poll
+        await createPoll(drive_state, {
           status: state,
           speed: speed,
-          driveID: lastDrive,
-          geocodeID: newGeocode._id
+          driveID: lastDrive
         });
-
-        // Save the document
-        await newPoll.save();
-
-        console.log(`Saved Poll:\n${newPoll}`);
-      } else {
+      }
+      // It is our first Geocode
+      else {
         firstGeoCode = false;
       }
     } catch (err) {
@@ -123,70 +169,36 @@ function sampleMain(tjs, options) {
 
   tjs.driveState(options, async function(err, drive_state) {
     if (drive_state) {
-      // Save our first Geocode
+      const state = drive_state.shift_state || "Parked";
+      const speed = drive_state.speed || "0";
+
+      // Save our first Geocode if no lastGeocodeID set
       if (!lastGeocodeID) getGeoCode(drive_state);
 
       console.log(drive_state);
 
-      var state = drive_state.shift_state || "Parked";
-      var speed = drive_state.speed || "0";
-
+      // First poll since parked, new drive
       if (lastState === "Parked" && state != "Parked") {
-        //first poll since parked, new drive
-
         lastState = state;
 
-        const newDrive = new Drive({
-          startTime: new Date(parseInt(drive_state.gps_as_of.toString())),
-          startHeading: drive_state.heading.toString(),
-          startLocation: {
-            type: "Point",
-            coordinates: [
-              drive_state.longitude.toString(),
-              drive_state.latitude.toString()
-            ]
-          }
-        });
-        newDrive.save().then(() => {
-          lastDrive = newDrive._id;
+        // Create the new drive
+        const newDrive = await createDrive(drive_state);
 
-          console.log(`Saved:\n${newDrive._id}`);
-          const newPoll = new Poll({
-            ts: new Date(parseInt(drive_state.gps_as_of.toString())),
-            unixTS:
-              new Date(
-                new Date(parseInt(drive_state.gps_as_of.toString())) * 1000
-              ) / 1000,
-            heading: drive_state.heading.toString(),
-            location: {
-              type: "Point",
-              coordinates: [
-                drive_state.longitude.toString(),
-                drive_state.latitude.toString()
-              ]
-            },
-            locAvail: drive_state.native_location_supported.toString(),
-            nativeType: drive_state.native_type.toString(),
-            power: drive_state.power.toString(),
-            status: state,
-            speed: speed,
-            driveID: newDrive._id,
-            geocodeID: lastGeocodeID,
-            street: lastGeoStreet,
-            city: lastGeoCity
-          });
-
-          newPoll.save().then(() => console.log(`Saved:\n${newPoll}`));
+        // Create the new poll
+        await createPoll(drive_state, {
+          status: state,
+          speed: speed,
+          driveID: newDrive._id
         });
-      } else if (
-        lastState != "Parked" &&
-        lastState != "" &&
-        state === "Parked"
-      ) {
-        //just parked, last poll of the drive
+
+        lastDrive = newDrive._id;
+      }
+      // Just parked, last poll of the drive
+      else if (lastState != "Parked" && lastState != "" && state === "Parked") {
         lastState = state;
 
-        Drive.updateOne(
+        // Update the drive as it is now over
+        await Drive.updateOne(
           {
             _id: lastDrive
           },
@@ -200,39 +212,17 @@ function sampleMain(tjs, options) {
                 drive_state.latitude.toString()
               ]
             }
-          },
-          err => {}
-        ).then(() => {
-          const newPoll = new Poll({
-            ts: new Date(parseInt(drive_state.gps_as_of.toString())),
-            unixTS:
-              new Date(
-                new Date(parseInt(drive_state.gps_as_of.toString())) * 1000
-              ) / 1000,
-            heading: drive_state.heading.toString(),
-            location: {
-              type: "Point",
-              coordinates: [
-                drive_state.longitude.toString(),
-                drive_state.latitude.toString()
-              ]
-            },
-            locAvail: drive_state.native_location_supported.toString(),
-            nativeType: drive_state.native_type.toString(),
-            power: drive_state.power.toString(),
-            status: state,
-            speed: speed,
-            driveID: lastDrive,
-            geocodeID: lastGeocodeID,
-            street: lastGeoStreet,
-            city: lastGeoCity
-          });
+          }
+        );
 
-          newPoll.save().then(() => {
-            console.log(`Saved:\n${newPoll}`);
-            lastDrive = "";
-          });
+        // Create the new poll
+        await createPoll(drive_state, {
+          status: state,
+          speed: speed,
+          driveID: lastDrive
         });
+
+        lastDrive = "";
       } else {
         lastState = state;
 
@@ -240,76 +230,29 @@ function sampleMain(tjs, options) {
         if (state != "Parked") {
           // Check if we need to get geocode (has it been more than 3 seconds)
           if (parseInt(drive_state.gps_as_of.toString()) - lastGeoTS > 3) {
-            getGeoCode(drive_state);
-          } else {
-            // Use lastGeo data, within 3 seconds.
-
-            const newPoll = new Poll({
-              ts: new Date(parseInt(drive_state.gps_as_of.toString())),
-              unixTS:
-                new Date(
-                  new Date(parseInt(drive_state.gps_as_of.toString())) * 1000
-                ) / 1000,
-              heading: drive_state.heading.toString(),
-              location: {
-                type: "Point",
-                coordinates: [
-                  drive_state.longitude.toString(),
-                  drive_state.latitude.toString()
-                ]
-              },
-              street: lastGeoStreet,
-              city: lastGeoCity,
-              locAvail: drive_state.native_location_supported.toString(),
-              nativeType: drive_state.native_type.toString(),
-              power: drive_state.power.toString(),
+            await getGeoCode(drive_state);
+          }
+          // Use lastGeo data, within 3 seconds.
+          else {
+            // Create the new poll
+            await createPoll(drive_state, {
               status: state,
               speed: speed,
-              driveID: lastDrive,
-              geocodeID: lastGeocodeID
-            });
-
-            newPoll.save().then(() => {
-              console.log(`Saved:\n${newPoll}`);
+              driveID: lastDrive
             });
           }
-        } else {
-          //parked, after or before a drive
-          const newPoll = new Poll({
-            ts: new Date(parseInt(drive_state.gps_as_of.toString())),
-            unixTS:
-              new Date(
-                new Date(parseInt(drive_state.gps_as_of.toString())) * 1000
-              ) / 1000,
-            heading: drive_state.heading.toString(),
-            location: {
-              type: "Point",
-              coordinates: [
-                drive_state.longitude.toString(),
-                drive_state.latitude.toString()
-              ]
-            },
-            street: lastGeoStreet,
-            city: lastGeoCity,
-            locAvail: drive_state.native_location_supported.toString(),
-            nativeType: drive_state.native_type.toString(),
-            power: drive_state.power.toString(),
-            status: state,
-            speed: speed,
-            geocodeID: lastGeocodeID
-          });
-
-          newPoll.save().then(() => {
-            console.log(`Saved:\n${newPoll}`);
-          });
+        }
+        // Parked, after or before a drive
+        else {
+          // Create the new poll
+          await createPoll(drive_state, { status: state, speed: speed });
         }
       }
 
-      console.log("\nState: " + state.green);
+      console.log(`State: ${state.green}`);
 
-      if (drive_state.speed) {
-        var str = drive_state.speed || 0;
-        console.log("Speed: " + str.green);
+      if (speed) {
+        console.log(`Speed: ${speed.green}`);
       }
     } else {
       console.log(err.red);
