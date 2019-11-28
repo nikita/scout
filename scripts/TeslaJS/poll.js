@@ -15,7 +15,8 @@ const Poll = require("./models/Poll");
 mongoose.connect(
   "mongodb://CHANGEME(USERNAME):CHANGEME(PASSWORD)@localhost:27017/CHANGEME(DBNAME)?authSource=admin",
   {
-    useNewUrlParser: true
+    useNewUrlParser: true,
+    useUnifiedTopology: true
   }
 );
 
