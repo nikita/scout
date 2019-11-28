@@ -1,5 +1,6 @@
 "use strict";
 
+require("dotenv").config();
 require("colors");
 const cron = require("node-cron");
 const request = require("request");
@@ -7,39 +8,15 @@ const program = require("commander");
 const mongoose = require("mongoose");
 const framework = require("./framework");
 
-// Our mongoose models.
+// Our mongoose models
 const Drive = require("./models/Drive");
 const Geocode = require("./models/Geocode");
 const Poll = require("./models/Poll");
 
-mongoose.connect(
-  "mongodb://CHANGEME(USERNAME):CHANGEME(PASSWORD)@localhost:27017/CHANGEME(DBNAME)?authSource=admin",
-  {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-  }
-);
-
-program
-  .option(
-    "-u, --username [string]",
-    "username (needed only if token not cached)"
-  )
-  .option(
-    "-p, --password [string]",
-    "password (needed only if token not cached)"
-  )
-  .option("-g, --geocode", "geocode the street address")
-  .option("-i, --index <n>", "vehicle index (first car by default)", parseInt)
-  .option(
-    "-U, --uri [string]",
-    "URI of test server (e.g. http://127.0.0.1:3000)"
-  )
-  .parse(process.argv);
-
-const sample = new framework(program, sampleMain);
-cron.schedule("*/1 * * * * *", function() {
-  sample.run();
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
 });
 
 var lastState = "";
@@ -381,3 +358,30 @@ function sampleMain(tjs, options) {
     }
   });
 }
+
+const main = () => {
+  program
+    .option(
+      "-u, --username [string]",
+      "username (needed only if token not cached)"
+    )
+    .option(
+      "-p, --password [string]",
+      "password (needed only if token not cached)"
+    )
+    .option("-g, --geocode", "geocode the street address")
+    .option("-i, --index <n>", "vehicle index (first car by default)", parseInt)
+    .option(
+      "-U, --uri [string]",
+      "URI of test server (e.g. http://127.0.0.1:3000)"
+    )
+    .parse(process.argv);
+
+  const poll = new framework(program, sampleMain);
+
+  cron.schedule("*/1 * * * * *", function() {
+    poll.run();
+  });
+};
+
+main();
