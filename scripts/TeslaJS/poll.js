@@ -20,7 +20,6 @@ mongoose.connect(process.env.MONGODB_URI, {
 });
 
 function sampleMain(tjs, options) {
-  let firstGeoCode = true;
   let lastState = "";
   let lastDrive = "";
   let lastGeocodeID = null;
@@ -98,8 +97,8 @@ function sampleMain(tjs, options) {
     }
   }
 
-  async function getGeoCode({ latitude, longitude, gps_as_of }) {
-    console.log("Running getGeoCode");
+  async function createGeocode({ latitude, longitude, gps_as_of }) {
+    console.log("Running createGeocode");
 
     try {
       const response = await rp.get({
@@ -136,11 +135,7 @@ function sampleMain(tjs, options) {
       // Save the document
       await newGeocode.save();
 
-      console.log(
-        `Saved ${firstGeoCode ? "First Geocode" : "Geocode"}:\n${
-          newGeocode._id
-        }`
-      );
+      console.log(`Saved Geocode: ${newGeocode._id}`);
 
       // Set the last state
       lastGeoObject = newGeocode;
@@ -148,20 +143,6 @@ function sampleMain(tjs, options) {
       lastGeocodeID = newGeocode._id;
       lastGeoStreet = response.address.road;
       lastGeoCity = response.address.city;
-
-      // If not our first Geocode we save the poll too
-      if (!firstGeoCode) {
-        // Create the new poll
-        await createPoll(drive_state, {
-          status: state,
-          speed: speed,
-          driveID: lastDrive
-        });
-      }
-      // It is our first Geocode
-      else {
-        firstGeoCode = false;
-      }
     } catch (err) {
       console.log(err);
     }
@@ -173,7 +154,7 @@ function sampleMain(tjs, options) {
       const speed = drive_state.speed || "0";
 
       // Save our first Geocode if no lastGeocodeID set
-      if (!lastGeocodeID) getGeoCode(drive_state);
+      if (!lastGeocodeID) createGeocode(drive_state);
 
       console.log(drive_state);
 
@@ -230,7 +211,15 @@ function sampleMain(tjs, options) {
         if (state != "Parked") {
           // Check if we need to get geocode (has it been more than 3 seconds)
           if (parseInt(drive_state.gps_as_of.toString()) - lastGeoTS > 3) {
-            await getGeoCode(drive_state);
+            // Create the geocode
+            await createGeocode(drive_state);
+
+            // Create the new poll
+            await createPoll(drive_state, {
+              status: state,
+              speed: speed,
+              driveID: lastDrive
+            });
           }
           // Use lastGeo data, within 3 seconds.
           else {
