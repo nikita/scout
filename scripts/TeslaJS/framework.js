@@ -30,14 +30,14 @@ function framework(program, main) {
 
     printLogo();
 
-    var options = { authToken: result.authToken };
+    let options = { authToken: result.authToken };
     tjs.vehicles(options, function(err, vehicles) {
       if (err) {
         console.log("\nError: " + err.red);
         return;
       }
 
-      var vehicle = vehicles[program.index || 0];
+      const vehicle = vehicles[program.index || 0];
       options.vehicleID = vehicle.id_s;
       options.vehicle_id = vehicle.vehicle_id;
       options.tokens = vehicle.tokens;
@@ -49,7 +49,7 @@ function framework(program, main) {
         return;
       }
 
-      var carType = tjs.getModel(vehicle);
+      const carType = tjs.getModel(vehicle);
 
       console.log(
         "\nVehicle " +
@@ -79,8 +79,8 @@ function framework(program, main) {
     }
 
     if (this.tokenFound) {
-      var fileStr = fs.readFileSync(".token", "utf8");
-      var token = JSON.parse(fileStr);
+      const fileStr = fs.readFileSync(".token", "utf8");
+      let token = JSON.parse(fileStr);
 
       if (!token) {
         program.help();
@@ -92,8 +92,8 @@ function framework(program, main) {
 
       this.login_cb(null, { error: false, authToken: token });
     } else {
-      var username = program.username || process.env.TESLAJS_USER;
-      var password = program.password || process.env.TESLAJS_PASS;
+      const username = program.username || process.env.TESLAJS_USER;
+      const password = program.password || process.env.TESLAJS_PASS;
 
       if (!username || !password) {
         program.help();
