@@ -10,12 +10,12 @@ const GeocodeSchema = new Schema({
     type: {
       type: String,
       enum: ["Point"],
-      required: true
+      required: true,
     },
     coordinates: {
       type: [Number],
-      required: true
-    }
+      required: true,
+    },
   },
   display_name: String,
 
@@ -28,7 +28,7 @@ const GeocodeSchema = new Schema({
   postcode: String,
   country: String,
   country_code: String,
-  boundingbox: [String]
+  boundingbox: [String],
 });
 
 const GeocodeModel = mongoose.model("Geocode", GeocodeSchema, "geocodes");

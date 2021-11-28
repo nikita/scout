@@ -9,12 +9,12 @@ const PollSchema = new Schema({
     type: {
       type: String,
       enum: ["Point"],
-      required: true
+      required: true,
     },
     coordinates: {
       type: [Number],
-      required: true
-    }
+      required: true,
+    },
   },
   street: String,
   city: String,
@@ -24,7 +24,7 @@ const PollSchema = new Schema({
   status: String,
   speed: Number,
   driveID: mongoose.Schema.Types.ObjectId,
-  geocodeID: mongoose.Schema.Types.ObjectId
+  geocodeID: mongoose.Schema.Types.ObjectId,
 });
 
 const PollModel = mongoose.model("Poll", PollSchema, "polls");

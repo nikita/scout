@@ -11,12 +11,12 @@
   "author": "никита",
   "license": "MIT",
   "dependencies": {
-    "commander": "^4.0.1",
-    "dotenv": "^8.2.0",
-    "forever": "^1.0.0",
-    "mongoose": "^5.7.12",
-    "node-cron": "^2.0.3",
-    "request-promise": "^4.2.5",
-    "teslajs": "^4.7.3"
+    "commander": "^8.3.0",
+    "dotenv": "^10.0.0",
+    "forever": "^4.0.1",
+    "mongoose": "^6.0.13",
+    "node-cron": "^3.0.0",
+    "request-promise": "^4.2.6",
+    "teslajs": "^4.9.11"
   }
 }

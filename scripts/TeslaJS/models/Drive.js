@@ -8,12 +8,12 @@ const DriveSchema = new Schema({
     type: {
       type: String,
       enum: ["Point"],
-      required: true
+      required: true,
     },
     coordinates: {
       type: [Number],
-      required: true
-    }
+      required: true,
+    },
   },
   endtime: Date,
   endHeading: Number,
@@ -21,13 +21,13 @@ const DriveSchema = new Schema({
     type: {
       type: String,
       enum: ["Point"],
-      required: false
+      required: false,
     },
     coordinates: {
       type: [Number],
-      required: false
-    }
-  }
+      required: false,
+    },
+  },
 });
 
 const DriveModel = mongoose.model("Drive", DriveSchema, "drives");

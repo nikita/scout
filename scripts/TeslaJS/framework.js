@@ -1,5 +1,3 @@
-"use strict";
-
 require("colors");
 const fs = require("fs");
 const tjs = require("teslajs");
@@ -21,7 +19,7 @@ function framework(program, main) {
   this.tokenFound = false;
   this.main = main;
 
-  this.login_cb = function(err, result) {
+  this.login_cb = function (err, result) {
     if (result.error) {
       console.error("Login failed!".red);
       console.warn(JSON.stringify(result.error));
@@ -31,7 +29,7 @@ function framework(program, main) {
     printLogo();
 
     let options = { authToken: result.authToken };
-    tjs.vehicles(options, function(err, vehicles) {
+    tjs.vehicles(options, function (err, vehicles) {
       if (err) {
         console.log("\nError: " + err.red);
         return;
@@ -68,7 +66,7 @@ function framework(program, main) {
     });
   };
 
-  this.run = function() {
+  this.run = function () {
     try {
       this.tokenFound = fs.statSync(".token").isFile();
     } catch (e) {}

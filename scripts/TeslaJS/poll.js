@@ -1,10 +1,8 @@
-"use strict";
-
 require("dotenv").config();
 require("colors");
 const cron = require("node-cron");
 const rp = require("request-promise");
-const program = require("commander");
+const { program } = require("commander");
 const mongoose = require("mongoose");
 const framework = require("./framework");
 
@@ -14,10 +12,9 @@ const Geocode = require("./models/Geocode");
 const Poll = require("./models/Poll");
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-});
+mongoose
+  .connect(process.env.MONGODB_URI)
+  .then(() => console.log("Successfully connected to MongoDB!"));
 
 function sampleMain(tjs, options) {
   let lastState = "";
@@ -36,8 +33,8 @@ function sampleMain(tjs, options) {
         startHeading: heading.toString(),
         startLocation: {
           type: "Point",
-          coordinates: [longitude.toString(), latitude.toString()]
-        }
+          coordinates: [longitude.toString(), latitude.toString()],
+        },
       });
 
       // Save the document
@@ -59,7 +56,7 @@ function sampleMain(tjs, options) {
       heading,
       native_location_supported,
       native_type,
-      power
+      power,
     },
     extraFields = {}
   ) {
@@ -72,7 +69,7 @@ function sampleMain(tjs, options) {
         heading: heading.toString(),
         location: {
           type: "Point",
-          coordinates: [longitude.toString(), latitude.toString()]
+          coordinates: [longitude.toString(), latitude.toString()],
         },
         street: lastGeoStreet,
         city: lastGeoCity,
@@ -80,7 +77,7 @@ function sampleMain(tjs, options) {
         nativeType: native_type.toString(),
         power: power.toString(),
         geocodeID: lastGeocodeID,
-        ...extraFields
+        ...extraFields,
       };
 
       // Create the new Poll document
@@ -104,9 +101,9 @@ function sampleMain(tjs, options) {
       const response = await rp.get({
         uri: `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude.toString()}&lon=${longitude.toString()}&zoom=18&addressdetails=1`,
         headers: {
-          "User-Agent": "SDScout/0.0.1"
+          "User-Agent": "SDScout/0.0.1",
         },
-        json: true
+        json: true,
       });
 
       // Create the new Geocode document
@@ -117,7 +114,7 @@ function sampleMain(tjs, options) {
         osm_id: response.osm_id,
         location: {
           type: "Point",
-          coordinates: [response.lon.toString(), response.lat.toString()]
+          coordinates: [response.lon.toString(), response.lat.toString()],
         },
         display_name: response.display_name,
         house_number: response.address.house_number,
@@ -129,7 +126,7 @@ function sampleMain(tjs, options) {
         postcode: response.address.postcode,
         country: response.address.country,
         country_code: response.address.country_code,
-        boundingbox: response.boundingbox
+        boundingbox: response.boundingbox,
       });
 
       // Save the document
@@ -148,7 +145,7 @@ function sampleMain(tjs, options) {
     }
   }
 
-  tjs.driveState(options, async function(err, drive_state) {
+  tjs.driveState(options, async function (err, drive_state) {
     if (drive_state) {
       const state = drive_state.shift_state || "Parked";
       const speed = drive_state.speed || "0";
@@ -169,7 +166,7 @@ function sampleMain(tjs, options) {
         await createPoll(drive_state, {
           status: state,
           speed: speed,
-          driveID: newDrive._id
+          driveID: newDrive._id,
         });
 
         lastDrive = newDrive._id;
@@ -181,7 +178,7 @@ function sampleMain(tjs, options) {
         // Update the drive as it is now over
         await Drive.updateOne(
           {
-            _id: lastDrive
+            _id: lastDrive,
           },
           {
             endTime: new Date(parseInt(drive_state.gps_as_of.toString())),
@@ -190,9 +187,9 @@ function sampleMain(tjs, options) {
               type: "Point",
               coordinates: [
                 drive_state.longitude.toString(),
-                drive_state.latitude.toString()
-              ]
-            }
+                drive_state.latitude.toString(),
+              ],
+            },
           }
         );
 
@@ -200,7 +197,7 @@ function sampleMain(tjs, options) {
         await createPoll(drive_state, {
           status: state,
           speed: speed,
-          driveID: lastDrive
+          driveID: lastDrive,
         });
 
         lastDrive = "";
@@ -218,7 +215,7 @@ function sampleMain(tjs, options) {
             await createPoll(drive_state, {
               status: state,
               speed: speed,
-              driveID: lastDrive
+              driveID: lastDrive,
             });
           }
           // Use lastGeo data, within 3 seconds.
@@ -227,7 +224,7 @@ function sampleMain(tjs, options) {
             await createPoll(drive_state, {
               status: state,
               speed: speed,
-              driveID: lastDrive
+              driveID: lastDrive,
             });
           }
         }
@@ -269,7 +266,8 @@ const main = () => {
 
   const poll = new framework(program, sampleMain);
 
-  cron.schedule("*/1 * * * * *", function() {
+  // Run cron every minute
+  cron.schedule("*/1 * * * *", function () {
     poll.run();
   });
 };
