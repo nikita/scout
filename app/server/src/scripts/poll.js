@@ -1,9 +1,11 @@
+require("dotenv").config();
 const fs = require("fs");
 const tjs = require("teslajs");
+const cron = require("node-cron");
 const rp = require("request-promise");
-const Drive = require("./models/Drive");
-const Geocode = require("./models/Geocode");
-const Poll = require("./models/Poll");
+const Poll = require("../server/models/Poll");
+const Drive = require("../server/models/Drive");
+const Geocode = require("../server/models/Geocode");
 
 const { TESLA_EMAIL, TESLA_PASSWORD, TESLA_VEHICLE_INDEX, TESLA_URI } =
   process.env;
@@ -25,8 +27,6 @@ const login = async () => {
     if (token.access_token) return { authToken: token.access_token };
   } catch (err) {}
 
-  return { authToken: "GG" };
-
   try {
     // Not an email
     if (!TESLA_EMAIL.includes("@")) throw new Error("Login email invalid");
@@ -42,7 +42,6 @@ const login = async () => {
 
 const getVehicle = async (i = TESLA_VEHICLE_INDEX || 0) => {
   try {
-    return { vehicleID: 1, vehicle_id: 1, tokens: ["GG"] };
     const vehicles = await tjs.vehiclesAsync(options);
     const vehicle = vehicles[i];
 
@@ -76,20 +75,6 @@ const getVehicle = async (i = TESLA_VEHICLE_INDEX || 0) => {
 
 const getDriveState = async () => {
   try {
-    return {
-      gps_as_of: 1543187664,
-      heading: 8,
-      latitude: 33.111111,
-      longitude: -88.111111,
-      native_latitude: 33.111111,
-      native_location_supported: 1,
-      native_longitude: -88.111111,
-      native_type: "wgs",
-      power: 0,
-      shift_state: null,
-      speed: null,
-      timestamp: 1543187666472,
-    };
     return await tjs.driveStateAsync(options);
   } catch (err) {
     throw new Error(`Get drive state failed: ${err}`);
@@ -324,4 +309,5 @@ const run = async () => {
   }
 };
 
-module.exports = run;
+// Run cron every minute
+cron.schedule("*/1 * * * *", () => run());

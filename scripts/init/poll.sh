@@ -1,3 +1,3 @@
 #!/bin/bash
-cd /tesladrive/scripts/TeslaJS
-pm2 start samples/poll.js  #CHANGEME (we should ahve it be /ts/scripts/TeslaJS/scout/poll.js)
+cd /home/CHANGEME(USERNAME)/Downloads/sds/server
+pm2 start npm --name "poll" -- poll
