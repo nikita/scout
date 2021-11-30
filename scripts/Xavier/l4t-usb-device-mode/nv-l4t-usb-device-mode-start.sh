@@ -89,13 +89,11 @@ fi
 mkdir -p /sys/kernel/config/usb_gadget/l4t
 cd /sys/kernel/config/usb_gadget/l4t
 
-
 echo 0x0103 > bcdDevice
 echo 0x0200 > bcdUSB
 echo 0x00 > bDeviceClass
 echo 0x00 > bDeviceSubClass
 echo 0x00 > bDeviceProtocol
-
 
 mkdir -p strings/0x409
 if [ -f /proc/device-tree/serial-number ]; then

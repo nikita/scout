@@ -35,7 +35,7 @@ class Handler(FileSystemEventHandler):
             # Take any action here when a file is first created.
             print("Received created event - %s." % event.src_path)
             #preprocess the video
-            Popen(['/home/CHANGEME(USERNAME)/scripts/preprocess.sh', event.src_path]) #CHANGEME
+            Popen(['/home/CHANGEME(USERNAME)/scripts/preprocess.sh', event.src_path])
 
         elif event.event_type == 'modified':
             # Taken any action here when a file is modified.
