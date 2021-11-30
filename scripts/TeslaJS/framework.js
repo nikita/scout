@@ -1,105 +1,327 @@
-require("colors");
 const fs = require("fs");
 const tjs = require("teslajs");
+const rp = require("request-promise");
+const Drive = require("./models/Drive");
+const Geocode = require("./models/Geocode");
+const Poll = require("./models/Poll");
 
-function printLogo() {
-  console.log("\n");
-  console.log("TTTTT EEEEE SSSSS L     AAAAA     J SSSSS");
-  console.log("  T   EEEEE S     L     AAAAA     J S");
-  console.log(" TTT        s     L               J S");
-  console.log("  T   EEEEE SSSSS L     AAAAA     J SSSSS");
-  console.log("  T             S L     A   A     J     S");
-  console.log("  T   EEEEE     S L     A   A J   J     S");
-  console.log("  T   EEEEE SSSSS LLLLL A   A JJJJJ SSSSS");
-  console.log("=========================================");
-}
+const { TESLA_EMAIL, TESLA_PASSWORD, TESLA_VEHICLE_INDEX, TESLA_URI } =
+  process.env;
 
-function framework(program, main) {
-  this.program = program;
-  this.tokenFound = false;
-  this.main = main;
+let options = {};
+// Last car state
+let lastState = "";
+let lastDrive = "";
+let lastGeocodeID = null;
+let lastGeoTS = null;
+let lastGeoStreet = null;
+let lastGeoCity = null;
 
-  this.login_cb = function (err, result) {
-    if (result.error) {
-      console.error("Login failed!".red);
-      console.warn(JSON.stringify(result.error));
-      return;
-    }
+const login = async () => {
+  // If login already saved
+  try {
+    const fileStr = fs.readFileSync(".token", "utf8");
+    const token = JSON.parse(fileStr);
+    if (token.access_token) return { authToken: token.access_token };
+  } catch (err) {}
 
-    printLogo();
+  return { authToken: "GG" };
 
-    let options = { authToken: result.authToken };
-    tjs.vehicles(options, function (err, vehicles) {
-      if (err) {
-        console.log("\nError: " + err.red);
-        return;
-      }
+  try {
+    // Not an email
+    if (!TESLA_EMAIL.includes("@")) throw new Error("Login email invalid");
 
-      const vehicle = vehicles[program.index || 0];
-      options.vehicleID = vehicle.id_s;
-      options.vehicle_id = vehicle.vehicle_id;
-      options.tokens = vehicle.tokens;
+    return await tjs.loginAsync({
+      username: TESLA_EMAIL,
+      password: TESLA_PASSWORD,
+    });
+  } catch (err) {
+    throw new Error(`Login failed: ${err}`);
+  }
+};
 
-      if (vehicle.state.toUpperCase() == "OFFLINE") {
-        console.log(
-          "\nResult: " + "Unable to contact vehicle, exiting!".bold.red
-        );
-        return;
-      }
+const getVehicle = async (i = TESLA_VEHICLE_INDEX || 0) => {
+  try {
+    return { vehicleID: 1, vehicle_id: 1, tokens: ["GG"] };
+    const vehicles = await tjs.vehiclesAsync(options);
+    const vehicle = vehicles[i];
 
-      const carType = tjs.getModel(vehicle);
-
-      console.log(
-        "\nVehicle " +
-          vehicle.vin.green +
-          " - " +
-          carType.green +
-          " ( '" +
-          vehicle.display_name.cyan +
-          "' ) is: " +
-          vehicle.state.toUpperCase().bold.green
+    if (vehicle.state.toUpperCase() == "OFFLINE")
+      return console.log(
+        "Result: " + "Unable to contact vehicle, exiting!".bold.red
       );
 
-      if (main) {
-        main(tjs, options);
-      }
+    const carType = tjs.getModel(vehicle);
+
+    console.log(
+      "Vehicle " +
+        vehicle.vin.green +
+        " - " +
+        carType.green +
+        " ( '" +
+        vehicle.display_name.cyan +
+        "' ) is: " +
+        vehicle.state.toUpperCase().bold.green
+    );
+
+    return {
+      vehicleID: vehicle.id_s,
+      vehicle_id: vehicle.vehicle_id,
+      tokens: vehicle.tokens,
+    };
+  } catch (err) {
+    throw new Error(`Get vehicle failed: ${err}`);
+  }
+};
+
+const getDriveState = async () => {
+  try {
+    return {
+      gps_as_of: 1543187664,
+      heading: 8,
+      latitude: 33.111111,
+      longitude: -88.111111,
+      native_latitude: 33.111111,
+      native_location_supported: 1,
+      native_longitude: -88.111111,
+      native_type: "wgs",
+      power: 0,
+      shift_state: null,
+      speed: null,
+      timestamp: 1543187666472,
+    };
+    return await tjs.driveStateAsync(options);
+  } catch (err) {
+    throw new Error(`Get drive state failed: ${err}`);
+  }
+};
+
+const createDrive = async ({ latitude, longitude, gps_as_of, heading }) => {
+  try {
+    // Create the new Drive document
+    const newDrive = new Drive({
+      startTime: new Date(parseInt(gps_as_of.toString())),
+      startHeading: heading.toString(),
+      startLocation: {
+        type: "Point",
+        coordinates: [longitude.toString(), latitude.toString()],
+      },
     });
-  };
 
-  this.run = function () {
-    try {
-      this.tokenFound = fs.statSync(".token").isFile();
-    } catch (e) {}
+    // Save the document
+    await newDrive.save();
 
-    if (program.uri) {
-      console.log("Setting portal URI to: " + program.uri);
-      tjs.setPortalBaseURI(program.uri);
+    console.log(`Saved Drive: ${newDrive._id}`);
+
+    return newDrive;
+  } catch (err) {
+    console.log(err);
+  }
+};
+
+const createPoll = async (
+  {
+    latitude,
+    longitude,
+    gps_as_of,
+    heading,
+    native_location_supported,
+    native_type,
+    power,
+  },
+  extraFields = {}
+) => {
+  try {
+    // By default we assume we are parked, after or before a drive
+    let pollData = {
+      ts: new Date(parseInt(gps_as_of.toString())),
+      unixTS: new Date(new Date(parseInt(gps_as_of.toString())) * 1000) / 1000,
+      heading: heading.toString(),
+      location: {
+        type: "Point",
+        coordinates: [longitude.toString(), latitude.toString()],
+      },
+      street: lastGeoStreet,
+      city: lastGeoCity,
+      locAvail: native_location_supported.toString(),
+      nativeType: native_type.toString(),
+      power: power.toString(),
+      geocodeID: lastGeocodeID,
+      ...extraFields,
+    };
+
+    // Create the new Poll document
+    const newPoll = new Poll(pollData);
+
+    // Save the document
+    await newPoll.save();
+
+    console.log(`Saved Poll: ${newPoll._id}`);
+
+    return newPoll;
+  } catch (err) {
+    console.log(err);
+  }
+};
+
+const createGeocode = async ({ latitude, longitude, gps_as_of }) => {
+  console.log("Running createGeocode");
+
+  try {
+    const response = await rp.get({
+      uri: `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude.toString()}&lon=${longitude.toString()}&zoom=18&addressdetails=1`,
+      headers: {
+        "User-Agent": "SDScout/0.0.1",
+      },
+      json: true,
+    });
+
+    // Create the new Geocode document
+    const newGeocode = new Geocode({
+      place_id: response.place_id,
+      license: response.license,
+      osm_type: response.osm_type,
+      osm_id: response.osm_id,
+      location: {
+        type: "Point",
+        coordinates: [response.lon.toString(), response.lat.toString()],
+      },
+      display_name: response.display_name,
+      house_number: response.address.house_number,
+      road: response.address.road,
+      suburb: response.address.suburb,
+      city: response.address.city,
+      county: response.address.county,
+      state: response.address.state,
+      postcode: response.address.postcode,
+      country: response.address.country,
+      country_code: response.address.country_code,
+      boundingbox: response.boundingbox,
+    });
+
+    // Save the document
+    await newGeocode.save();
+
+    console.log(`Saved Geocode: ${newGeocode._id}`);
+
+    // Set the last state
+    lastGeoTS = parseInt(gps_as_of.toString());
+    lastGeocodeID = newGeocode._id;
+    lastGeoStreet = response.address.road;
+    lastGeoCity = response.address.city;
+  } catch (err) {
+    console.log(err);
+  }
+};
+
+const run = async () => {
+  try {
+    if (TESLA_URI) {
+      console.log(`Setting portal URI to: ${TESLA_URI}`);
+      tjs.setPortalBaseURI(TESLA_URI);
     }
 
-    if (this.tokenFound) {
-      const fileStr = fs.readFileSync(".token", "utf8");
-      let token = JSON.parse(fileStr);
+    // Login if not set already
+    if (!options.authToken) options = { ...options, ...(await login()) };
 
-      if (!token) {
-        program.help();
-      }
+    // Get vehicle if not set already
+    if (!options.vehicleID) options = { ...options, ...(await getVehicle()) };
 
-      if (token.access_token) {
-        token = token.access_token;
-      }
+    // Get drive state for vehicle
+    const driveState = await getDriveState();
+    console.log(driveState);
 
-      this.login_cb(null, { error: false, authToken: token });
+    const state = driveState.shift_state || "Parked";
+    const speed = driveState.speed || "0";
+
+    // Save our first Geocode if no lastGeocodeID set
+    if (!lastGeocodeID) await createGeocode(driveState);
+
+    // First poll since parked, new drive
+    if (lastState === "Parked" && state != "Parked") {
+      lastState = state;
+
+      // Create the new drive
+      const newDrive = await createDrive(driveState);
+
+      // Create the new poll
+      await createPoll(driveState, {
+        status: state,
+        speed: speed,
+        driveID: newDrive._id,
+      });
+
+      lastDrive = newDrive._id;
+    }
+    // Just parked, last poll of the drive
+    else if (lastState != "Parked" && lastState != "" && state === "Parked") {
+      lastState = state;
+
+      // Update the drive as it is now over
+      await Drive.updateOne(
+        {
+          _id: lastDrive,
+        },
+        {
+          endTime: new Date(parseInt(driveState.gps_as_of.toString())),
+          endHeading: driveState.heading.toString(),
+          endLocation: {
+            type: "Point",
+            coordinates: [
+              driveState.longitude.toString(),
+              driveState.latitude.toString(),
+            ],
+          },
+        }
+      );
+
+      // Create the new poll
+      await createPoll(driveState, {
+        status: state,
+        speed: speed,
+        driveID: lastDrive,
+      });
+
+      lastDrive = "";
     } else {
-      const username = program.username || process.env.TESLAJS_USER;
-      const password = program.password || process.env.TESLAJS_PASS;
+      lastState = state;
 
-      if (!username || !password) {
-        program.help();
+      // Driving/in a drive
+      if (state != "Parked") {
+        // Check if we need to get geocode (has it been more than 3 seconds)
+        if (parseInt(driveState.gps_as_of.toString()) - lastGeoTS > 3) {
+          // Create the geocode
+          await createGeocode(driveState);
+
+          // Create the new poll
+          await createPoll(driveState, {
+            status: state,
+            speed: speed,
+            driveID: lastDrive,
+          });
+        }
+        // Use lastGeo data, within 3 seconds.
+        else {
+          // Create the new poll
+          await createPoll(driveState, {
+            status: state,
+            speed: speed,
+            driveID: lastDrive,
+          });
+        }
       }
-
-      tjs.login(username, password, this.login_cb);
+      // Parked, after or before a drive
+      else {
+        // Create the new poll
+        await createPoll(driveState, { status: state, speed: speed });
+      }
     }
-  };
-}
 
-module.exports = framework;
+    console.log(`State: ${state.green}`);
+    if (speed) console.log(`Speed: ${speed.green}`);
+  } catch (err) {
+    console.log(err);
+  }
+};
+
+module.exports = run;

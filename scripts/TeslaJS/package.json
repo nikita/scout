@@ -11,7 +11,6 @@
   "author": "никита",
   "license": "MIT",
   "dependencies": {
-    "commander": "^8.3.0",
     "dotenv": "^10.0.0",
     "forever": "^4.0.1",
     "mongoose": "^6.0.13",
