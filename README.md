@@ -7,7 +7,7 @@
 Surveillance Detection Scout is a hardware and software stack that makes use of your Tesla's cameras to tell you if you're being followed in real-time. The name, as you likely gathered, pays homage to the ever-effective "Surveillance Detection Route". When parked, Scout makes an excellent static surveillance practitioner as well, allowing you to run queries and establish patterns-of-life on detected persons.
 
 --
-Feb Update: README to be updated shortly to reflect initial FCR.
+Update: Currently WIP, not in a usable state!
 --
 
 Before going any further, I want to make sure to acknowledge the people (and repositories) who helped this project, with or without knowing they did so.
@@ -32,7 +32,7 @@ Even if you don't yet have the hardware necessary to start running inference wit
 
 NOTE: Replace all CHANGEME areas in code
 
-1. Run `cd ./scripts/TeslaJS`
+1. Run `cd ./app/server`
 2. Rename `.env.example` → `.env` by running `mv .env.example .env`
 3. Open .env & change CHANGEME values to your own
 4. Run `npm install`
